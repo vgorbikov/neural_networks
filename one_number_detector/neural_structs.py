@@ -17,11 +17,16 @@ class Neuron():
 
 
     def _activation_func(self, x) -> int:
-        return 0 if x < self.input_weights[0] else 1
+        if x < self.input_weights[0]:
+            return 0
+        else:
+            return 1
     
 
     def activation(self, inputs: list[int]) -> int:
-        s = sum([inputs[i]*self.input_weights[i] for i in range(self.input_count)])
+        #важно помнить что весовой коэффициент с индексом 0 является пороговым значением и в сумматор не попадает
+        s = sum([inputs[i]*self.input_weights[i] for i in range(1, self.input_count)])
+        print(s)
         return self._activation_func(s)
 
 
@@ -49,4 +54,8 @@ class NeuronLayer():
 
     def activation(self, inputs: list[int]) -> list[int]:
         return [self.neurons[i].activation(inputs) for i in range(self.neurons_count)]
-    
+
+
+
+def train(layer: NeuronLayer):
+    pass

@@ -4,25 +4,32 @@ import PySimpleGUI as sg
 
 sg.theme('Dark Blue 3')
 
-#задаёт разрешение сетки
-horizontal_resolution = 10    
-#фактические размеры рабочей области      
-area_width = 500
-area_height = 700
-grid_step = round(area_width/horizontal_resolution)
-
 
 #адаптер к холсту
 class DrawGrid():
-    def __init__(self, width, height, grid_step, gui_obj) -> None:
+    def __init__(self, width, height, h_resolution) -> None:
         self.width: int = width
         self.height: int = height
-        self.grid_step: int = grid_step
+        self.h_resolution = h_resolution
+        self.grid_step: int = round(self.width/self.h_resolution)
         self.gwidth = self.width//self.grid_step
         self.gheight = self.height//self.grid_step
-        self.area: sg.Graph = gui_obj
+        #холст
+        self.area: sg.Graph = sg.Graph(canvas_size=(self.width, self.height), 
+                     graph_bottom_left=(0, self.height), 
+                     graph_top_right=(self.width, 0), 
+                     background_color='white',
+                     key='-INPUT-',
+                     enable_events=True,
+                     drag_submits=True)
         self.objects = []
         self.binary_set: list(int) = [0 for i in range(0, self.gwidth*self.gheight)]
+
+
+    def draw_grid(self):
+        #Сетка для разбиения на "пиксели"
+        work_grid_vert = [self.area.draw_line((x, 0), (x, self.height), color='grey') for x in range(0, self.width, self.grid_step)]
+        work_grid_hor = [self.area.draw_line((0, y), (self.width, y), color='grey') for y in range(0, self.height, self.grid_step)]
 
 
     def clear(self):
@@ -38,47 +45,85 @@ class DrawGrid():
             return
         rx = gx*self.grid_step
         ry = gy*self.grid_step
-        self.objects.append(work_area.draw_rectangle((rx, ry), (rx+self.grid_step, ry+self.grid_step), fill_color='black'))
+        self.objects.append(self.area.draw_rectangle((rx, ry), (rx+self.grid_step, ry+self.grid_step), fill_color='black'))
         self.binary_set[gy*self.gwidth + gx] = 1
 
 
 
-#холст
-work_area = sg.Graph(canvas_size=(area_width, area_height), 
-                     graph_bottom_left=(0, area_height), 
-                     graph_top_right=(area_width, 0), 
-                     background_color='white',
-                     key='-INPUT-',
-                     enable_events=True,
-                     drag_submits=True)
+class PresentationWindow():
+    def __init__(self) -> None:
+        self.grid = DrawGrid(500, 700, 5)
 
-#создаём адаптер к холсту
-grid = DrawGrid(area_width, area_height, grid_step, work_area)
+        #размещаем нужные элементы в окне
+        self.presentation_layout = [
+            [sg.Text('Нарисуйте цифру'), sg.Text(size=(12,1))],
+            [self.grid.area],
+            [sg.Text('Это выглядит как: ', key='-OUT-')],
+            [sg.Button('Clear'), sg.Button('Exit')]]
+        self.presentation_window = sg.Window('Work Presentation', self.presentation_layout, finalize=True)
 
-#размещаем нужные элементы в окне
-layout = [[sg.Text('Нарисуйте цифру'), sg.Text(size=(12,1))],
-          [work_area],
-          [sg.Text('Это выглядит как: ', key='-OUT-')],
-          [sg.Button('Clear'), sg.Button('Exit')]]
-
-window = sg.Window('Work Presentation', layout, finalize=True)
-
-#Сетка для разбиения на "пиксели"
-work_grid_vert = [work_area.draw_line((x, 0), (x, area_height), color='grey') for x in range(0, area_width, grid_step)]
-work_grid_hor = [work_area.draw_line((0, y), (area_width, y), color='grey') for y in range(0, area_height, grid_step)]
+        #создаём сетку для рисования
+        self.grid.draw_grid()
 
 
-while True:  # Event Loop
-    event, values = window.read()
-    print(event, values)
-    if event == sg.WIN_CLOSED or event == 'Exit':
-        break
-    if event == '-INPUT-':
-        # window['-OUT-'].update("Это выглядит как: ")
-        grid.draw(*values['-INPUT-'])
-        print(grid.binary_set)
-    if event == 'Clear':
-        grid.clear()
-        
+    def open(self):
+        while True:  # Event Loop
+            event, values = self.presentation_window.read()
+            print(event, values)
+            if event == sg.WIN_CLOSED or event == 'Exit':
+                break
+            if event == '-INPUT-':
+                # window['-OUT-'].update("Это выглядит как: ")
+                self.grid.draw(*values['-INPUT-'])
+            if event == 'Clear':
+                self.grid.clear()
 
-window.close()
+        self.presentation_window.close()
+
+
+
+class GenerateWindow():
+    def __init__(self) -> None:
+        self.grid = DrawGrid(500, 700, 5)
+
+        #размещаем нужные элементы в окне
+        self.presentation_layout = [
+            [sg.Text('Нарисуйте цифру'), sg.Text(size=(12,1))],
+            [self.grid.area],
+            [sg.Button('Сохранить набор данных для цифры: ', key="-SAVE-"), 
+             sg.Combo(['1', '2', '3', '4', '4', '6', '7', '8', '9', '0'], key="-DATASET_REFERENCE-")],
+            [sg.Button('Clear'), sg.Button('Exit')]]
+        self.presentation_window = sg.Window('Work Presentation', self.presentation_layout, finalize=True)
+
+        #создаём сетку для рисования
+        self.grid.draw_grid()
+
+
+    def save_dataset(self, target: int, dataset: list[int]):
+        zipdata = '|'.join([str(i) for i in dataset]) + '>{}\n'.format(target)
+        with open("ond_dataset_{}rsl.txt".format(self.grid.h_resolution), "a") as f:
+            f.writelines(zipdata)
+
+
+    def open(self):
+        while True:  # Event Loop
+            event, values = self.presentation_window.read()
+            print(event, values)
+            if event == sg.WIN_CLOSED or event == 'Exit':
+                break
+            if event == '-INPUT-':
+                # window['-OUT-'].update("Это выглядит как: ")
+                self.grid.draw(*values['-INPUT-'])
+            if event == 'Clear':
+                self.grid.clear()
+            if event == '-SAVE-':
+                self.save_dataset(values['-DATASET_REFERENCE-'], self.grid.binary_set)
+
+        self.presentation_window.close()
+
+pres_window = GenerateWindow()
+pres_window.open()
+
+
+
+
