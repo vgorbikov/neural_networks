@@ -39,6 +39,12 @@ class NeuronLayer():
 
     def get_weight_matrix(self):
         return np.transpose([self.neurons[i].input_weights for i in range(self.neurons_count)])
+    
+
+    def set_weight_matrix(self, weights_matrix: Optional[list[list[int]]]):
+        t_wm = np.transpose(weights_matrix)
+        for i in range(self.neurons_count):
+            self.neurons[i].input_weights = t_wm[i]
 
 
     def activation(self, inputs: list[int]) -> list[int]:
