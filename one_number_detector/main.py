@@ -1,5 +1,5 @@
 import PySimpleGUI as sg
-import neural_structs as ns
+# import neural_structs as ns
 
 sg.theme('Dark Blue 3')
 
@@ -96,7 +96,7 @@ class GenerateWindow():
             [sg.Text('Нарисуйте цифру'), sg.Text(size=(12,1))],
             [self.grid.area],
             [sg.Button('Сохранить набор данных для цифры: ', key="-SAVE-"), 
-             sg.Combo(['1', '2', '3', '4', '4', '6', '7', '8', '9', '0'], key="-DATASET_REFERENCE-")],
+             sg.Combo(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'], key="-DATASET_REFERENCE-")],
             [sg.Button('Clear'), sg.Button('Exit')]]
         self.presentation_window = sg.Window('Work Presentation', self.presentation_layout, finalize=True)
 
