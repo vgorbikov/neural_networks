@@ -1,5 +1,6 @@
+import asyncio
 import PySimpleGUI as sg
-# import neural_structs as ns
+import neural_structs as ns
 
 sg.theme('Dark Blue 3')
 
@@ -22,7 +23,7 @@ class DrawGrid():
                      enable_events=True,
                      drag_submits=True)
         self.objects = []
-        self.binary_set: list(int) = [0 for i in range(0, self.gwidth*self.gheight)]
+        self.binary_set: list[int] = [0 for i in range(0, self.gwidth*self.gheight)]
 
 
     def draw_grid(self):
@@ -37,14 +38,16 @@ class DrawGrid():
             self.binary_set = [0 for i in range(0, self.gwidth*self.gheight)]
 
 
-    def draw(self, x, y):
+    async def draw(self, x, y):
         gx = (x//self.grid_step)
         gy = (y//self.grid_step)
         if self.binary_set[gy*self.gwidth + gx] != 0:
             return
         rx = gx*self.grid_step
         ry = gy*self.grid_step
-        self.objects.append(self.area.draw_rectangle((rx, ry), (rx+self.grid_step, ry+self.grid_step), fill_color='black'))
+        async def dr():
+            self.objects.append(self.area.draw_rectangle((rx, ry), (rx+self.grid_step, ry+self.grid_step), fill_color='black'))
+        await(asyncio.create_task(dr()))
         self.binary_set[gy*self.gwidth + gx] = 1
 
 
@@ -64,12 +67,22 @@ class PresentationWindow():
         #создаём сетку для рисования
         self.grid.draw_grid()
 
+        self.net = ns.NeuronLayer.load('inp35_neu10 16it_0int.txt')
+
 
     def update_answer(self, answer: int):
         self.presentation_window['-OUT-'].update('Это выглядит как: {}'.format(answer))
 
+    
+    def out_description(self, v: list):
+        v = list(v)
+        try:
+            return v.index(1)
+        except:
+            return "Что-то"
 
-    def open(self):
+
+    async def open(self):
         while True:  # Event Loop
             event, values = self.presentation_window.read()
             print(event, values)
@@ -77,11 +90,12 @@ class PresentationWindow():
                 break
             if event == '-INPUT-':
                 # window['-OUT-'].update("Это выглядит как: ")
-                self.grid.draw(*values['-INPUT-'])
+                await asyncio.create_task(self.grid.draw(*values['-INPUT-']))
             if event == 'Clear':
                 self.grid.clear()
             if event == '-INPUT-+UP':
-                self.update_answer(values['-INPUT-'][0])
+                out = self.net.polarizated_activation(self.grid.binary_set)
+                self.update_answer(self.out_description(out))
 
         self.presentation_window.close()
 
@@ -128,19 +142,19 @@ class GenerateWindow():
 
 
 
-def dataset_target_decode(target: int, neurons_count: int):
-    v = [0 for i in range(neurons_count)]
-    v[target-1] = 1
-    return v
+# def dataset_target_decode(target: int, neurons_count: int):
+#     v = [0 for i in range(neurons_count)]
+#     v[target] = 1
+#     return v
 
 
 
-def dataset_decoder(path: str, neurons_count: int):
-    with open(path, 'r') as f:
-        data = f.read()
-    lined_data = data.split('\n')
-    lined_data.pop()
-    return [[[int(x) for x in set[0].split('|')], dataset_target_decode(int(set[1]), neurons_count)] for set in [line.split('>') for line in lined_data]]
+# def dataset_decoder(path: str, neurons_count: int):
+#     with open(path, 'r') as f:
+#         data = f.read()
+#     lined_data = data.split('\n')
+#     lined_data.pop()
+#     return [[[int(x) for x in set[0].split('|')], dataset_target_decode(int(set[1]), neurons_count)] for set in [line.split('>') for line in lined_data]]
 
 
 
@@ -193,13 +207,9 @@ def dataset_decoder(path: str, neurons_count: int):
 
 
 
+pres_window = PresentationWindow()
+asyncio.run(pres_window.open())
 
-
-
-
-
-pres_window = GenerateWindow()
-pres_window.open()
 
 
 

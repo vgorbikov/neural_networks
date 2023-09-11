@@ -29,9 +29,28 @@ class Neuron():
     
 
     def activation(self, inputs: list[int]) -> int:
-        #важно помнить что весовой коэффициент с индексом 0 является пороговым значением и в сумматор не попадает
-        s = sum([inputs[i]*self.input_weights[i] for i in range(0, self.input_count)])
+        s = 0
+        for i in range(len(inputs)):
+            s += inputs[i]*self.input_weights[i]
         return self._activation_func(s)
+
+
+    def learn(self, inputs: list[int], target: int, intensity: int) -> int:
+        """
+        Проводит обучение нейрона на основе тестовых данных
+        inputs - набор входных сигналов
+        target - ожидаемый вывод нейрона
+
+        Возвращает 1, если ответ был неправильным
+        Иначе 0
+        """
+        out = self.activation(inputs)
+        dout = target - out
+        if dout != 0:
+            for i in range(len(inputs)):
+                self.input_weights[i] += dout*inputs[i]*intensity
+            return 1
+        return 0
 
 
 
@@ -42,7 +61,7 @@ class NeuronLayer():
         if random == True:
             self.neurons = [Neuron.random_init(inp_count) for i in range(neurons_count)]
         else:
-            t_wm = np.transpose(weights_matrix)
+            t_wm = weights_matrix
             self.neurons = [Neuron(inp_count, t_wm[i]) for i in range(neurons_count)]
     
 
@@ -52,22 +71,28 @@ class NeuronLayer():
             data = f.read()
         lined_data = data.split('\n')
         wm = [[np.float64(char) for char in string.split('|')] for string in lined_data]     
-        neuron_count = len(wm[0])
-        inp_count = len(wm) - 1
+        inp_count = len(wm[0]) - 1
+        neuron_count = len(wm)
         return cls(neuron_count, inp_count, False, wm)
 
+
     def get_weight_matrix(self):
-        return np.transpose([self.neurons[i].input_weights for i in range(self.neurons_count)])
+        return [self.neurons[i].input_weights for i in range(self.neurons_count)]
     
 
     def set_weight_matrix(self, weights_matrix: Optional[list[list[int]]]):
-        t_wm = np.transpose(weights_matrix)
+        t_wm = weights_matrix
         for i in range(self.neurons_count):
             self.neurons[i].input_weights = t_wm[i]
 
 
     def activation(self, inputs: list[int]) -> list[int]:
-        return np.array([self.neurons[i].activation(inputs) for i in range(self.neurons_count)])
+        return [self.neurons[i].activation(inputs) for i in range(self.neurons_count)]
+    
+
+    def polarizated_activation(self, inputs: list[int]) -> list[int]:
+        p_inputs = np.insert(inputs, 0, 1)
+        return self.activation(p_inputs)
     
 
     def save_model(self, iteration_count: int, intensity: int):
@@ -95,65 +120,49 @@ class PerseptronTrainer():
         return i
     
 
-    def _dataset_sero_err(self):
+    def _dataset_sero_err(self) -> bool:
         for n in self.dataset_fails:
             if n!= 0:
                 return False
         return True
 
 
+    def training(self, intensity):
+        for set in self.dataset:
+                set[0].insert(0, 1)
 
-    def start_training(self, intensity: float):
-        print("Train started")
         while self.done == False:
             for set_id in range(len(self.dataset)):
                 set = self.dataset[set_id]
             
-                set[0].insert(0, 1)
-                inp_v = np.array(set[0])
-                out_v = self.net.activation(inp_v)
-                dout = np.array(set[1]) - out_v
+                fails = 0
+                for i in range(len(self.net.neurons)):
+                    fails += self.net.neurons[i].learn(set[0], set[1][i], intensity)
 
-                wm = self.net.get_weight_matrix()
-                for i in range(self.net.input_count):
-                    for n in range(self.net.neurons_count):
-                        wm[i][n] += dout[n]*inp_v[i]*intensity
-
-                self.net.set_weight_matrix(wm)
-
-                fails = self._calculate_errors(dout)
-                
                 self.dataset_fails[set_id] = fails
 
-                print("Iteration: {}; Set: {}; Out: {}; Fails: {}; Set_fails: {}".format(self.iteration, set_id, out_v, fails, self._calculate_errors(self.dataset_fails)))
-                if self._dataset_sero_err() or self.iteration == 100000000:
+                print("Iteration: {}; Fails: {}; DS_Fails: {}, Set: {}".format(self.iteration, fails, self._calculate_errors(self.dataset_fails), set_id))
+
+
+                if self._dataset_sero_err() or self.iteration == 300000:
                     self.net.save_model(self.iteration, intensity)
                     print(self.dataset_fails)
                     self.done = True
+                    break
             
             self.iteration += 1
-
-            
 
 
 
 
 def dataset_target_decode(target: int, neurons_count: int):
     v = [0 for i in range(neurons_count)]
-    v[target-1] = 1
+    v[target] = 1
     return v
-
 
 
 def dataset_decoder(path: str, neurons_count: int):
     with open(path, 'r') as f:
         data = f.read()
     lined_data = data.split('\n')
-    lined_data.pop()
     return [[[int(x) for x in set[0].split('|')], dataset_target_decode(int(set[1]), neurons_count)] for set in [line.split('>') for line in lined_data]]
-
-
-l = NeuronLayer(10, 35, True)
-t = PerseptronTrainer(l, dataset_decoder('ond_dataset_5rsl.txt', 10))
-t.start_training(0.1)
-
