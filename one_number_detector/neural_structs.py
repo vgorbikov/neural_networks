@@ -104,13 +104,20 @@ class NeuronLayer():
 
 
 class PerseptronTrainer():
-    def __init__(self, layer: NeuronLayer, dataset: list, stat_func = lambda x: x) -> None:
+    def __init__(self, layer: NeuronLayer, dataset: list, intensity: int) -> None:
         self.dataset = dataset
         self.net = layer
+        self.intensity = intensity
         self.iteration = 0
         self.dataset_fails = [1 for i in dataset]
         self.done = False
-        self.stat_func = stat_func
+
+        self._polarize_dataset_inputs()
+
+
+    def _polarize_dataset_inputs(self):
+        for set in self.dataset:
+                set[0].insert(0, 1)
 
 
     def _calculate_errors(self, d: list[int]) -> int:
@@ -128,10 +135,31 @@ class PerseptronTrainer():
         return True
 
 
-    async def training(self, intensity):
-        for set in self.dataset:
-                set[0].insert(0, 1)
+    def training_cycle(self) -> int:
+        while self.done == False:
+            for set_id in range(len(self.dataset)):
+                set = self.dataset[set_id]
+            
+                fails = 0
+                for i in range(len(self.net.neurons)):
+                    fails += self.net.neurons[i].learn(set[0], set[1][i], self.intensity)
 
+                self.dataset_fails[set_id] = fails
+                
+                print("Iteration: {}; Fails: {}; DS_Fails: {}, Set: {}".format(self.iteration, fails, self._calculate_errors(self.dataset_fails), set_id))
+                yield self._calculate_errors(self.dataset_fails)
+
+                if self._dataset_sero_err() or self.iteration == 300000:
+                    self.net.save_model(self.iteration, self.intensity)
+                    print(self.dataset_fails)
+                    self.done = True
+                    yield '-END-'
+                    break
+            
+            self.iteration += 1
+
+
+    async def training(self, intensity):
         while self.done == False:
             for set_id in range(len(self.dataset)):
                 set = self.dataset[set_id]
@@ -142,7 +170,6 @@ class PerseptronTrainer():
 
                 self.dataset_fails[set_id] = fails
 
-                await asyncio.create_task(self.stat_func(self._calculate_errors(self.dataset_fails)))
                 print("Iteration: {}; Fails: {}; DS_Fails: {}, Set: {}".format(self.iteration, fails, self._calculate_errors(self.dataset_fails), set_id))
 
                 if self._dataset_sero_err() or self.iteration == 300000:

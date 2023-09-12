@@ -187,6 +187,8 @@ class TrainWindow():
         self.presentation_window = sg.Window('Work Presentation', self.presentation_layout, finalize=True)
         self.net = None
         self.trainer = None
+        self.training_is_run = False
+        self.stat_generator = None
 
 
     def dataset_target_decode(self, target: int, neurons_count: int):
@@ -212,19 +214,29 @@ class TrainWindow():
     async def start_training(self, datasetpath: str, n_count: int):
         dataset = self.dataset_decoder(datasetpath, n_count)
         self.net = ns.NeuronLayer(n_count, len(dataset[0][0]), random=True)
-        self.trainer = ns.PerseptronTrainer(self.net, dataset, self._upd_stat)
+        self.trainer = ns.PerseptronTrainer(self.net, dataset, 0.1)
 
-        await asyncio.create_task(self.trainer.training(0.1))
+        self.training_is_run = True
+        self.stat_generator = self.trainer.training_cycle()
 
 
     async def open(self):
         while True:  # Event Loop
+            if self.training_is_run:
+                self.presentation_window.write_event_value("-TAINING-", True)
+
             event, values = self.presentation_window.read()
             print(event, values)
             if event == sg.WIN_CLOSED or event == 'Exit':
                 break
             if event == '-START-':
                 await asyncio.create_task(self.start_training(values["-FILE-"], 10))
+            if event == "-TAINING-":
+                point = next(self.stat_generator)
+                if point == '-END-':
+                    self.training_is_run = False
+                else:
+                    await self._upd_stat(point)
             if event == '-STOP-':
                 pass
 
@@ -232,8 +244,42 @@ class TrainWindow():
 
 
 
-pres_window = TrainWindow()
-asyncio.run(pres_window.open())
+class MenuWindow():
+    def __init__(self) -> None:
+            self.presentation_layout = [
+            [sg.Text('Меню')],
+            [sg.Button('Испытание', key='-PRESENTATION-')],
+            [sg.Button('Генерация обучающих наборов', key='-GENERATION-')],
+            [sg.Button('Обучение', key='-LEARN-')],
+            [sg.Button('Выйти', key='Exit')]]
+            self.window = sg.Window('Menu', self.presentation_layout, finalize=True)
+
+
+    def open(self):
+        while True:  # Event Loop
+            event, values = self.window.read()
+            print(event, values)
+            if event == sg.WIN_CLOSED or event == 'Exit':
+                break
+            if event == '-PRESENTATION-':
+                w = PresentationWindow()
+                asyncio.run(w.open())
+            if event == '-GENERATION-':
+                w = GenerateWindow()
+                asyncio.run(w.open())
+            if event == '-LEARN-':
+                w = TrainWindow()
+                asyncio.run(w.open())
+            
+                
+
+        self.window.close()
+
+
+
+
+pres_window = MenuWindow()
+pres_window.open()
 
 
 
