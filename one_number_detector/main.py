@@ -190,7 +190,9 @@ class TrainWindow():
         self.trainer = None
         self.training_is_run = False
         self.stat_generator = None
-        self.vert_max_value = 300
+        self.vert_max_value = self.width + 50
+        self.scale_step = 1
+        self.scale = []
 
 
     def dataset_target_decode(self, target: int, neurons_count: int):
@@ -206,6 +208,10 @@ class TrainWindow():
         return [[[int(x) for x in set[0].split('|')], self.dataset_target_decode(int(set[1]), neurons_count)] for set in [line.split('>') for line in lined_data]]
 
 
+    def draw_scale(self):
+        self.scale_step = self.height//(self.vert_max_value + 10)
+
+
     def delete_unvisible_stat(self):
         dl = len(self.stat_points) - self.width
         if dl > 0:
@@ -214,10 +220,9 @@ class TrainWindow():
                 self.stat_points.pop(0)
 
 
-
     async def _upd_stat(self, dataset_errors: int):
         self.delete_unvisible_stat()
-        y = dataset_errors*(self.width//(self.vert_max_value + 30))
+        y = dataset_errors*self.scale_step
         for point in self.stat_points:
             self.graph_area.move_figure(point, -1, 0)
         self.stat_points.append(self.graph_area.draw_point((self.width, y)))
@@ -228,6 +233,7 @@ class TrainWindow():
         self.net = ns.NeuronLayer(n_count, len(dataset[0][0]), random=True)
         self.trainer = ns.PerseptronTrainer(self.net, dataset, intensity)
         self.vert_max_value = len(self.trainer.dataset)
+        self.draw_scale()
 
         self.training_is_run = True
         self.stat_generator = self.trainer.training_cycle()
@@ -248,7 +254,7 @@ class TrainWindow():
             if event == sg.WIN_CLOSED or event == 'Exit':
                 break
             if event == '-START-':
-                await asyncio.create_task(self.start_training(values["-FILE-"], 10, values['-intensity-']))
+                await asyncio.create_task(self.start_training(values["-FILE-"], 10, float(values['-intensity-'])))
             if event == '-STOP-':
                 self.training_is_run = False
                 self.net.save_model(self.trainer.iteration, self.trainer.intensity)
