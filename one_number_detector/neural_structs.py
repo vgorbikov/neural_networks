@@ -1,7 +1,7 @@
 from typing import Optional
 import random
 import numpy as np
-
+import asyncio
 
 
 class Neuron():
@@ -104,12 +104,13 @@ class NeuronLayer():
 
 
 class PerseptronTrainer():
-    def __init__(self, layer: NeuronLayer, dataset: list) -> None:
+    def __init__(self, layer: NeuronLayer, dataset: list, stat_func = lambda x: x) -> None:
         self.dataset = dataset
         self.net = layer
         self.iteration = 0
         self.dataset_fails = [1 for i in dataset]
         self.done = False
+        self.stat_func = stat_func
 
 
     def _calculate_errors(self, d: list[int]) -> int:
@@ -127,7 +128,7 @@ class PerseptronTrainer():
         return True
 
 
-    def training(self, intensity):
+    async def training(self, intensity):
         for set in self.dataset:
                 set[0].insert(0, 1)
 
@@ -141,8 +142,8 @@ class PerseptronTrainer():
 
                 self.dataset_fails[set_id] = fails
 
+                await asyncio.create_task(self.stat_func(self._calculate_errors(self.dataset_fails)))
                 print("Iteration: {}; Fails: {}; DS_Fails: {}, Set: {}".format(self.iteration, fails, self._calculate_errors(self.dataset_fails), set_id))
-
 
                 if self._dataset_sero_err() or self.iteration == 300000:
                     self.net.save_model(self.iteration, intensity)
@@ -151,18 +152,3 @@ class PerseptronTrainer():
                     break
             
             self.iteration += 1
-
-
-
-
-def dataset_target_decode(target: int, neurons_count: int):
-    v = [0 for i in range(neurons_count)]
-    v[target] = 1
-    return v
-
-
-def dataset_decoder(path: str, neurons_count: int):
-    with open(path, 'r') as f:
-        data = f.read()
-    lined_data = data.split('\n')
-    return [[[int(x) for x in set[0].split('|')], dataset_target_decode(int(set[1]), neurons_count)] for set in [line.split('>') for line in lined_data]]
