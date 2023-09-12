@@ -86,7 +86,7 @@ class PresentationWindow():
             [self.grid.area],
             [sg.Text('Это выглядит как: ', key='-OUT-')],
             [sg.Button('Clear'), sg.Button('Exit')]]
-        self.presentation_window = sg.Window('Work Presentation', self.presentation_layout, finalize=True)
+        self.presentation_window = sg.Window('Презентация результата', self.presentation_layout, finalize=True)
 
         #создаём сетку для рисования
         self.grid.draw_grid()
@@ -109,7 +109,7 @@ class PresentationWindow():
     async def open(self):
         while True:  # Event Loop
             event, values = self.presentation_window.read()
-            print(event, values)
+            # print(event, values)
             if event == sg.WIN_CLOSED or event == 'Exit':
                 break
             if event == '-INPUT-':
@@ -135,7 +135,7 @@ class GenerateWindow():
             [sg.Button('Сохранить набор данных для цифры: ', key="-SAVE-"), 
              sg.Combo(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'], key="-DATASET_REFERENCE-", default_value=1)],
             [sg.Button('Clear'), sg.Button('Exit')]]
-        self.presentation_window = sg.Window('Work Presentation', self.presentation_layout, finalize=True)
+        self.presentation_window = sg.Window('Генератор данных для обучения', self.presentation_layout, finalize=True)
 
         #создаём сетку для рисования
         self.grid.draw_grid()
@@ -150,7 +150,7 @@ class GenerateWindow():
     async def open(self):
         while True:  # Event Loop
             event, values = self.presentation_window.read()
-            print(event, values)
+            # print(event, values)
             if event == sg.WIN_CLOSED or event == 'Exit':
                 break
             if event == '-INPUT-':
@@ -168,7 +168,7 @@ class GenerateWindow():
 
 class TrainWindow():
     def __init__(self) -> None:
-        self.width = 500
+        self.width = 600
         self.height = 300
         self.stat_points = []
         self.graph_area: sg.Graph = sg.Graph(canvas_size=(self.width, self.height), 
@@ -179,16 +179,18 @@ class TrainWindow():
 
         #размещаем нужные элементы в окне
         self.presentation_layout = [
-            [sg.Text('Обучение')],
-            [sg.T('Выберите файл с данными для обучения:'), sg.FileBrowse(button_text="Выбрать", key='-FILE-')],
+            [sg.T('Выберите файл с данными для обучения:'), sg.FileBrowse(button_text="Выбрать", key='-FILE-'), 
+             sg.Text("Интенсивность обучения"), sg.InputCombo([1, 0.1, 0.05, 0.01, 0.005, 0.001], default_value=0.1, enable_events=True, key='-intensity-')],
             [sg.Text('Отклонение от тестового набора:')],
             [self.graph_area],
+            [sg.Text("Итерация: ", key='-iter_count-')],
             [sg.Button('Начать обучение', key='-START-'), sg.Button('Остановить обучение', key='-STOP-'), sg.Button('Exit')]]
-        self.presentation_window = sg.Window('Work Presentation', self.presentation_layout, finalize=True)
+        self.presentation_window = sg.Window('Обучение', self.presentation_layout, finalize=True)
         self.net = None
         self.trainer = None
         self.training_is_run = False
         self.stat_generator = None
+        self.vert_max_value = 300
 
 
     def dataset_target_decode(self, target: int, neurons_count: int):
@@ -204,17 +206,28 @@ class TrainWindow():
         return [[[int(x) for x in set[0].split('|')], self.dataset_target_decode(int(set[1]), neurons_count)] for set in [line.split('>') for line in lined_data]]
 
 
+    def delete_unvisible_stat(self):
+        dl = len(self.stat_points) - self.width
+        if dl > 0:
+            for i in range(dl+10):
+                self.graph_area.delete_figure(self.stat_points[0])
+                self.stat_points.pop(0)
+
+
+
     async def _upd_stat(self, dataset_errors: int):
-        y = dataset_errors
+        self.delete_unvisible_stat()
+        y = dataset_errors*(self.width//(self.vert_max_value + 30))
         for point in self.stat_points:
             self.graph_area.move_figure(point, -1, 0)
         self.stat_points.append(self.graph_area.draw_point((self.width, y)))
 
 
-    async def start_training(self, datasetpath: str, n_count: int):
+    async def start_training(self, datasetpath: str, n_count: int, intensity: int):
         dataset = self.dataset_decoder(datasetpath, n_count)
         self.net = ns.NeuronLayer(n_count, len(dataset[0][0]), random=True)
-        self.trainer = ns.PerseptronTrainer(self.net, dataset, 0.1)
+        self.trainer = ns.PerseptronTrainer(self.net, dataset, intensity)
+        self.vert_max_value = len(self.trainer.dataset)
 
         self.training_is_run = True
         self.stat_generator = self.trainer.training_cycle()
@@ -223,22 +236,22 @@ class TrainWindow():
     async def open(self):
         while True:  # Event Loop
             if self.training_is_run:
-                self.presentation_window.write_event_value("-TAINING-", True)
-
-            event, values = self.presentation_window.read()
-            print(event, values)
-            if event == sg.WIN_CLOSED or event == 'Exit':
-                break
-            if event == '-START-':
-                await asyncio.create_task(self.start_training(values["-FILE-"], 10))
-            if event == "-TAINING-":
                 point = next(self.stat_generator)
                 if point == '-END-':
                     self.training_is_run = False
                 else:
                     await self._upd_stat(point)
+                    self.presentation_window['-iter_count-'].update("Итерация: {}".format(self.trainer.iteration))
+
+            event, values = self.presentation_window.read(timeout=0.1)
+            # print(event, values)
+            if event == sg.WIN_CLOSED or event == 'Exit':
+                break
+            if event == '-START-':
+                await asyncio.create_task(self.start_training(values["-FILE-"], 10, values['-intensity-']))
             if event == '-STOP-':
-                pass
+                self.training_is_run = False
+                self.net.save_model(self.trainer.iteration, self.trainer.intensity)
 
         self.presentation_window.close()
 
@@ -258,7 +271,7 @@ class MenuWindow():
     def open(self):
         while True:  # Event Loop
             event, values = self.window.read()
-            print(event, values)
+            # print(event, values)
             if event == sg.WIN_CLOSED or event == 'Exit':
                 break
             if event == '-PRESENTATION-':
