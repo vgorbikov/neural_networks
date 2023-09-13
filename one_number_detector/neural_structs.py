@@ -146,12 +146,11 @@ class PerseptronTrainer():
 
                 self.dataset_fails[set_id] = fails
                 
-                print("Iteration: {}; Fails: {}; DS_Fails: {}, Set: {}".format(self.iteration, fails, self._calculate_errors(self.dataset_fails), set_id))
+                # print("Iteration: {}; Fails: {}; DS_Fails: {}, Set: {}".format(self.iteration, fails, self._calculate_errors(self.dataset_fails), set_id))
                 yield self._calculate_errors(self.dataset_fails)
 
                 if self._dataset_sero_err() or self.iteration == 300000:
                     self.net.save_model(self.iteration, self.intensity)
-                    print(self.dataset_fails)
                     self.done = True
                     yield '-END-'
                     break
@@ -174,7 +173,6 @@ class PerseptronTrainer():
 
                 if self._dataset_sero_err() or self.iteration == 300000:
                     self.net.save_model(self.iteration, intensity)
-                    print(self.dataset_fails)
                     self.done = True
                     break
             

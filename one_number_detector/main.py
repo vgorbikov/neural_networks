@@ -82,6 +82,8 @@ class PresentationWindow():
 
         #размещаем нужные элементы в окне
         self.presentation_layout = [
+            [sg.Text('Выберите обученную модель и разрешение:'), sg.FileBrowse("Модель", key='-model_path-', enable_events=True), 
+             sg.Combo([5, 10, 15, 20, 25, 30], key='-resolution-', enable_events=True, default_value=5), sg.Button("Установить", key='-set-')],
             [sg.Text('Нарисуйте цифру'), sg.Text(size=(12,1))],
             [self.grid.area],
             [sg.Text('Это выглядит как: ', key='-OUT-')],
@@ -91,6 +93,7 @@ class PresentationWindow():
         #создаём сетку для рисования
         self.grid.draw_grid()
 
+        #сеть по умолчанию
         self.net = ns.NeuronLayer.load('inp35_neu10 16it_0int.txt')
 
 
@@ -119,6 +122,14 @@ class PresentationWindow():
             if event == '-INPUT-+UP':
                 out = self.net.polarizated_activation(self.grid.binary_set)
                 self.update_answer(self.out_description(out))
+            if event == '-model_path-':
+                self.net = ns.NeuronLayer.load(values['-model_path-'])
+            if event == '-resolution-':
+                self.grid.update_resolution(values['-resolution-'])
+            if event == '-set-':
+                self.net = ns.NeuronLayer.load(values['-model_path-'])
+                self.grid.update_resolution(values['-resolution-'])
+
 
         self.presentation_window.close()
 
@@ -249,7 +260,7 @@ class TrainWindow():
                     await self._upd_stat(point)
                     self.presentation_window['-iter_count-'].update("Итерация: {}".format(self.trainer.iteration))
 
-            event, values = self.presentation_window.read(timeout=0.1)
+            event, values = self.presentation_window.read(timeout=0)
             # print(event, values)
             if event == sg.WIN_CLOSED or event == 'Exit':
                 break
