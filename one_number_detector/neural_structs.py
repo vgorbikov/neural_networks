@@ -158,7 +158,7 @@ class PerseptronTrainer():
             self.iteration += 1
 
 
-    async def training(self, intensity):
+    def training(self, intensity):
         while self.done == False:
             for set_id in range(len(self.dataset)):
                 set = self.dataset[set_id]
